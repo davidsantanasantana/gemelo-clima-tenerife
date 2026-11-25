@@ -1,0 +1,17 @@
+{
+  "name": "Gemelo climático · Tenerife",
+  "short_name": "Clima TF",
+  "description": "Temperatura, humedad, precipitación y viento en tiempo real en Tenerife (AEMET y AgroCabildo).",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    { "src": "iconos/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "iconos/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

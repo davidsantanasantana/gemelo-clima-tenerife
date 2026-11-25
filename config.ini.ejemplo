@@ -1,0 +1,38 @@
+; =====================================================================
+;  Gemelo digital climático de Tenerife — configuración
+;  Copia este fichero como  config.ini  y rellena la API key de AEMET.
+; =====================================================================
+
+[general]
+; real = AEMET + AgroCabildo | demo = datos sintéticos para probar sin conexión ni clave
+modo = real
+carpeta_datos = datos
+puerto = 8765
+; horas de datos que carga el visor para el mapa y la reproducción temporal
+horas_visor = 72
+
+[programador]
+; si = el propio servidor (gemelo.py) lanza la descarga horaria y la consolidación diaria.
+; no = lo haces con el Programador de tareas de Windows / cron (ver README).
+interno = si
+; minuto de cada hora en que se descargan datos (AEMET publica la hora HH:00 hacia HH:20-HH:40)
+minuto_actualizacion = 40
+; hora local (HH:MM) de la consolidación diaria: CSV del día anterior + resumen diario
+hora_consolidacion = 00:50
+
+[aemet]
+activo = si
+; Clave gratuita: https://opendata.aemet.es/centrodedescargas/altaUsuario
+api_key = PON_AQUI_TU_API_KEY
+
+[agrocabildo]
+; API Meteo del Cabildo (https://datos.tenerife.es/api/meteo/latest/docs): pública, sin clave,
+; datos diezminutales en tiempo real de ~68 estaciones.
+activo = si
+; horas hacia atrás que se piden en cada actualización horaria (la primera vez se piden 72 h)
+horas_tiempo_real = 6
+; horas a SUMAR a las fechas de AgroCabildo para pasarlas a UTC. En invierno 0.
+; Si en verano ves el ciclo diario adelantado una hora respecto a AEMET, pon -1.
+desfase_horas = 0
+; si = en la consolidación nocturna se vuelve a pedir el día anterior completo (rellena huecos)
+relleno_diario = si
