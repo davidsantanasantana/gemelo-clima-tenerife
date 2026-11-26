@@ -45,8 +45,27 @@
   const S = {
     vari: "ta", idx: 0, horas: [], porHora: new Map(), porEst: new Map(), est: new Map(),
     fuentesOcultas: new Set(), jugando: null, ultimaAct: null, ultimaObs: null,
-    sel: null, diasCajon: 7, modo: "real", horasVisor: 72,
+    sel: null, diasCajon: 7, modo: "real", horasVisor: 168,
+    vertientesOcultas: new Set(), periodoH: 72, orden: { col: "ta", desc: true }, texto: "", cacheTend: "",
   };
+  const esc = t => String(t ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const AZUL = () => getComputedStyle(document.documentElement).getPropertyValue("--azul").trim() || "#005A9C";
+
+  // ---- vertiente: norte / sur según la dorsal Anaga–Las Cañadas–Teno; cumbre por encima de 1.800 m
+  const DORSAL = [[-16.95, 28.32], [-16.86, 28.32], [-16.75, 28.29], [-16.64, 28.27], [-16.55, 28.29], [-16.48, 28.33],
+    [-16.40, 28.41], [-16.32, 28.48], [-16.22, 28.53], [-16.10, 28.56]];
+  const VERT = { N: "Norte", S: "Sur", C: "Cumbre (> 1.800 m)" };
+  function vertiente(e) {
+    if ((e.alt || 0) >= 1800) return "C";
+    let latD = DORSAL[0][1];
+    for (let i = 0; i < DORSAL.length - 1; i++) {
+      const [x1, y1] = DORSAL[i], [x2, y2] = DORSAL[i + 1];
+      if (e.lon >= x1 && e.lon <= x2) { latD = y1 + (y2 - y1) * (e.lon - x1) / (x2 - x1); break; }
+      if (e.lon > x2) latD = y2;
+    }
+    return e.lat >= latD ? "N" : "S";
+  }
+  const visible = e => !S.fuentesOcultas.has(e.fuente) && !S.vertientesOcultas.has(e.vert);
   const $ = id => document.getElementById(id);
 
   // ------------------------------------------------------------------ acceso a datos
@@ -160,9 +179,9 @@
     }
     anillosIsla = anillos;
     const mundo = [[-89, -179], [-89, 179], [89, 179], [89, -179]];
-    L.polygon([mundo, ...anillos], { pane: "mascara", stroke: false, fillColor: "#0d1117", fillOpacity: 1, interactive: false }).addTo(mapa);
-    L.polygon(anillos, { pane: "borde", fill: false, color: "#e6edf3", weight: 1.6, opacity: .9, interactive: false }).addTo(mapa);
-    L.polygon(anillos, { pane: "borde", fill: false, color: "#000", weight: 4, opacity: .35, interactive: false }).addTo(mapa).bringToBack();
+    L.polygon([mundo, ...anillos], { pane: "mascara", stroke: false, fillColor: "#f3f6f9", fillOpacity: 1, interactive: false }).addTo(mapa);
+    L.polygon(anillos, { pane: "borde", fill: false, color: "#ffffff", weight: 5, opacity: .9, interactive: false }).addTo(mapa);
+    L.polygon(anillos, { pane: "borde", fill: false, color: AZUL(), weight: 2, opacity: 1, interactive: false }).addTo(mapa);
     const b = L.latLngBounds(anillos.flat());
     limitesIsla = b.pad(0.04);
     mapa.setMaxBounds(b.pad(0.25));
@@ -216,7 +235,7 @@
   function puntosActuales() {
     const out = [];
     for (const e of S.est.values()) {
-      if (S.fuentesOcultas.has(e.fuente)) continue;
+      if (!visible(e)) continue;
       const r = valor(e.id, S.idx, S.vari);
       if (r.v == null) continue;
       out.push({ e, v: r.v });
@@ -326,7 +345,8 @@
   async function cargarVentana(irAlFinal) {
     const r = await DATOS.ventana(S.horasVisor);
     const estabaAlFinal = irAlFinal || S.idx >= S.horas.length - 1;
-    S.est = new Map(r.estaciones.map(e => [e.id, e]));
+    S.est = new Map(r.estaciones.map(e => [e.id, { ...e, vert: vertiente(e) }]));
+    S.cacheTend = "";
     S.porHora = new Map(); S.porEst = new Map();
     const set = new Set();
     for (const o of r.obs) {
@@ -343,10 +363,9 @@
     if (estabaAlFinal) S.idx = S.horas.length - 1;
     S.idx = Math.min(S.idx, S.horas.length - 1);
     rng.value = S.idx;
-    construirFiltroFuentes();
+    construirFiltros();
     construirMarcadores();
-    const ultH = S.horas[S.horas.length - 1];
-    $("st-activas").textContent = ultH ? `${S.porHora.get(ultH)?.size || 0} / ${S.est.size}` : "—";
+    ajustarPeriodo();
     render();
     if (S.sel) abrirCajon(S.sel, true);
   }
@@ -375,11 +394,11 @@
     const flechas = $("chk-flechas").checked && (S.vari === "vv" || S.vari === "vmax");
     for (const [id, m] of marcadores) {
       const e = S.est.get(id);
-      if (S.fuentesOcultas.has(e.fuente)) { capaMarc.removeLayer(m); continue; }
+      if (!visible(e)) { capaMarc.removeLayer(m); continue; }
       capaMarc.addLayer(m);
       const r = valor(id, S.idx, S.vari);
       const sin = r.v == null;
-      const col = sin ? "#555" : css(colorRGB(S.vari, r.v));
+      const col = sin ? "#b8c0ca" : css(colorRGB(S.vari, r.v));
       const cls = ["mk", e.fuente === "AGROCABILDO" ? "agro" : "", sin ? "sin" : "", r.viejo ? "viejo" : ""].join(" ");
       let html = `<div class="${cls}">`;
       if (flechas && !sin && r.dv != null && r.v > 1) html += flechaSVG(r.dv, col);
@@ -387,8 +406,8 @@
       if (etiquetas && !sin) html += `<div class="val">${fmt(S.vari, r.v)}</div>`;
       html += "</div>";
       m.setIcon(L.divIcon({ className: "", html, iconSize: [0, 0] }));
-      const hace = r.viejo ? ` <span style="color:#e3a33b">(${G.fmtHora.format(r.t)})</span>` : "";
-      m.setTooltipContent(`<b>${e.nombre}</b> <span style="color:#8b98a8">· ${e.fuente} · ${Math.round(e.alt ?? 0)} m</span><br>${VARS[S.vari].n}: <b>${fmt(S.vari, r.v)} ${VARS[S.vari].u}</b>${hace}`);
+      const hace = r.viejo ? ` <span style="color:#b7791f">(${G.fmtHora.format(r.t)})</span>` : "";
+      m.setTooltipContent(`<b>${esc(e.nombre)}</b> <span style="color:#5f6b7a">· ${e.fuente} · ${VERT[e.vert]} · ${Math.round(e.alt ?? 0)} m</span><br>${VARS[S.vari].n}: <b>${fmt(S.vari, r.v)} ${VARS[S.vari].u}</b>${hace}`);
     }
   }
 
@@ -405,17 +424,32 @@
     }
   }
 
-  function construirFiltroFuentes() {
-    const fuentes = [...new Set([...S.est.values()].map(e => e.fuente))].sort();
-    const cont = $("filtro-fuentes");
-    cont.innerHTML = "Fuentes: " + fuentes.map(f => {
-      const n = [...S.est.values()].filter(e => e.fuente === f).length;
-      return `<label><input type="checkbox" data-f="${f}" ${S.fuentesOcultas.has(f) ? "" : "checked"}> ${f} <small>(${n})</small></label>`;
-    }).join(" ");
+  function casillas(cont, items, ocultas) {
+    cont.innerHTML = items.map(([k, t, n]) =>
+      `<label class="fila"><input type="checkbox" data-k="${esc(k)}" ${ocultas.has(k) ? "" : "checked"}> ${esc(t)} <small>(${n})</small></label>`).join("");
     cont.querySelectorAll("input").forEach(i => i.onchange = () => {
-      i.checked ? S.fuentesOcultas.delete(i.dataset.f) : S.fuentesOcultas.add(i.dataset.f);
-      render(true);
+      i.checked ? ocultas.delete(i.dataset.k) : ocultas.add(i.dataset.k);
+      S.cacheTend = ""; render(true);
     });
+  }
+  function construirFiltros() {
+    const ests = [...S.est.values()];
+    const fuentes = [...new Set(ests.map(e => e.fuente))].sort();
+    casillas($("filtro-fuentes"), fuentes.map(f => [f, f === "AGROCABILDO" ? "AgroCabildo" : f, ests.filter(e => e.fuente === f).length]), S.fuentesOcultas);
+    casillas($("filtro-vertiente"), Object.entries(VERT).map(([k, t]) => [k, t, ests.filter(e => e.vert === k).length]), S.vertientesOcultas);
+  }
+  function construirPeriodo() {
+    const cont = $("filtro-periodo");
+    cont.innerHTML = [[24, "24 h"], [72, "72 h"], [168, "7 días"]].map(([h, t]) => `<button data-h="${h}">${t}</button>`).join("");
+    cont.querySelectorAll("button").forEach(b => b.onclick = () => { S.periodoH = +b.dataset.h; S.cacheTend = ""; ajustarPeriodo(); render(); });
+  }
+  function ajustarPeriodo() {
+    const n = S.horas.length, rng = $("rng-tiempo");
+    rng.min = Math.max(0, n - S.periodoH);
+    rng.max = Math.max(0, n - 1);
+    if (S.idx < +rng.min) S.idx = +rng.min;
+    rng.value = S.idx;
+    $("filtro-periodo").querySelectorAll("button").forEach(b => b.classList.toggle("activo", +b.dataset.h === S.periodoH));
   }
 
   function renderLeyenda() {
@@ -428,32 +462,138 @@
     if (S.vari === "ta" && $("chk-lapse").checked) nota = "Superficie reducida con −6,5 °C/km sobre el MDT";
     if (!c.sup) nota = "Sin superficie: la presión en estación depende de la cota";
     if (S.vari === "vmax" || S.vari === "vv") nota = "AgroCabildo: racha ≈ máx. de medias diezminutales";
-    $("leyenda").innerHTML = `<b>${c.n}</b> <span style="color:#8b98a8">(${c.u})</span>
+    $("leyenda").innerHTML = `<b>${c.n}</b> <span style="color:#5f6b7a">(${c.u})</span>
       <div class="barra" style="background:linear-gradient(90deg,${ramp.join(",")})"></div>
       <div class="marcas">${marcas.map(v => `<span>${Math.round(v)}</span>`).join("")}</div>
-      ${nota ? `<div style="color:#8b98a8;margin-top:4px;font-size:10.5px">${nota}</div>` : ""}
-      <div style="color:#8b98a8;margin-top:4px;font-size:10.5px">● AEMET &nbsp; ■ AgroCabildo</div>`;
+      ${nota ? `<div class="nota">${nota}</div>` : ""}
+      <div class="nota">● AEMET &nbsp; ■ AgroCabildo</div>`;
   }
 
-  function renderKPIs() {
-    const c = VARS[S.vari];
-    const pts = puntosActuales();
-    const cont = $("kpis");
-    if (!pts.length) { cont.innerHTML = `<div class="kpi" style="grid-column:span 2"><div class="t">Sin datos</div></div>`; return; }
-    const max = pts.reduce((a, b) => b.v > a.v ? b : a), min = pts.reduce((a, b) => b.v < a.v ? b : a);
-    const media = pts.reduce((s, p) => s + p.v, 0) / pts.length;
-    const k = (t, v, d) => `<div class="kpi"><div class="t">${t}</div><div class="v">${v}</div><div class="d" title="${d}">${d}</div></div>`;
-    const u = `<small>${c.u}</small>`;
-    let h = k("Máximo", `${fmt(S.vari, max.v)} ${u}`, `${max.e.nombre} · ${Math.round(max.e.alt ?? 0)} m`);
-    if (S.vari.startsWith("prec")) {
-      const conLluvia = pts.filter(p => p.v >= 0.1).length;
-      h += k("Con precipitación", `${conLluvia} <small>/ ${pts.length}</small>`, "estaciones ≥ 0,1 mm");
-    } else {
-      h += k("Mínimo", `${fmt(S.vari, min.v)} ${u}`, `${min.e.nombre} · ${Math.round(min.e.alt ?? 0)} m`);
+  function extremos(vari) {
+    const pts = [];
+    for (const e of S.est.values()) {
+      if (!visible(e)) continue;
+      const r = valor(e.id, S.idx, vari);
+      if (r.v != null) pts.push({ e, v: r.v, dv: r.dv });
     }
-    h += k("Media de la red", `${fmt(S.vari, media)} ${u}`, "media simple de estaciones");
-    h += k("Estaciones con dato", `${pts.length} <small>/ ${[...S.est.values()].filter(e => !S.fuentesOcultas.has(e.fuente)).length}</small>`, "en la hora seleccionada");
-    cont.innerHTML = h;
+    if (!pts.length) return null;
+    return { pts, max: pts.reduce((a, b) => b.v > a.v ? b : a), min: pts.reduce((a, b) => b.v < a.v ? b : a),
+      media: pts.reduce((s, p) => s + p.v, 0) / pts.length };
+  }
+  function renderKPIs() {
+    const k = (t, v, u, d) => `<div class="kpi"><div class="t">${t}</div><div class="v">${v} <small>${u}</small></div><div class="d" title="${esc(d)}">${esc(d)}</div></div>`;
+    const lugar = p => `${p.e.nombre} · ${Math.round(p.e.alt ?? 0)} m`;
+    const T = extremos("ta"), P = extremos("prec24"), R = extremos("vmax");
+    const total = [...S.est.values()].filter(visible);
+    const conDato = total.filter(e => S.porHora.get(S.horas[S.idx])?.has(e.id) || valor(e.id, S.idx, "ta").v != null);
+    const porF = f => conDato.filter(e => e.fuente === f).length;
+    $("kpis").innerHTML =
+      k("Temperatura media", T ? fmt("ta", T.media) : "—", "°C", T ? `media de ${T.pts.length} estaciones` : "sin datos") +
+      k("Máxima", T ? fmt("ta", T.max.v) : "—", "°C", T ? lugar(T.max) : "") +
+      k("Mínima", T ? fmt("ta", T.min.v) : "—", "°C", T ? lugar(T.min) : "") +
+      k("Precipitación 24 h máx.", P ? fmt("prec24", P.max.v) : "—", "mm", P ? (P.max.v >= 0.1 ? lugar(P.max) : "sin lluvia en la red") : "") +
+      k("Racha máxima", R ? fmt("vmax", R.max.v) : "—", "km/h", R ? lugar(R.max) : "") +
+      k("Estaciones activas", conDato.length, `/ ${total.length}`, `AEMET ${porF("AEMET")} · AgroCabildo ${porF("AGROCABILDO")}`);
+  }
+
+  function renderTendencia() {
+    const vari = S.vari === "prec24" ? "prec" : S.vari;
+    const ini = +$("rng-tiempo").min, horas = S.horas.slice(ini);
+    const clave = [vari, ini, S.horas.length, S.horas[S.horas.length - 1], [...S.fuentesOcultas], [...S.vertientesOcultas], $("g-tend").clientWidth].join("|");
+    $("tit-tend").textContent = `${S.vari === "prec24" ? "Precipitación horaria" : VARS[vari].n} media por vertiente · ${S.periodoH === 168 ? "7 días" : S.periodoH + " h"}`;
+    if (clave === S.cacheTend) return;
+    S.cacheTend = clave;
+    const k = VARS[vari].k || 1;
+    const colores = { N: AZUL(), S: "#e8833a", C: "#1e8e5a" };
+    const series = [];
+    for (const v of ["N", "S", "C"]) {
+      if (S.vertientesOcultas.has(v)) continue;
+      const ids = [...S.est.values()].filter(e => e.vert === v && visible(e)).map(e => e.id);
+      if (!ids.length) continue;
+      const datos = horas.map(t => {
+        const m = S.porHora.get(t); let s = 0, n = 0;
+        for (const id of ids) { const o = m?.get(id); if (o && o[vari] != null) { s += o[vari] * k; n++; } }
+        return [t, n ? +(s / n).toFixed(VARS[vari].dec + 1) : null];
+      });
+      series.push({ nombre: VERT[v].split(" ")[0], color: colores[v], datos, unidad: VARS[vari].u, tipo: vari === "prec" ? "linea" : "linea", grosor: 2 });
+    }
+    $("leyenda-tend").innerHTML = series.map(s => `<span style="--c:${s.color}">${s.nombre}</span>`).join("");
+    G.serieTemporal($("g-tend"), series, { alto: 190, desdeCero: vari === "prec" || vari === "vv" || vari === "vmax" || vari === "rad" });
+  }
+
+  function renderTop() {
+    const pts = puntosActuales().sort((a, b) => b.v - a.v).slice(0, 8);
+    $("tit-top").textContent = `Ranking · ${VARS[S.vari].n} · 8 valores más altos`;
+    if (!pts.length) { $("g-top").innerHTML = `<div class="vacio">Sin datos en la hora seleccionada</div>`; return; }
+    const max = Math.max(...pts.map(p => p.v), 1e-9), min = Math.min(0, ...pts.map(p => p.v));
+    $("g-top").innerHTML = pts.map(p => `<button class="barra-fila" data-id="${esc(p.e.id)}" title="${esc(p.e.nombre)}">
+      <span class="nom">${esc(p.e.nombre)}</span><span class="pista"><div style="width:${Math.max(1, (p.v - min) / (max - min) * 100).toFixed(1)}%"></div></span>
+      <span class="val">${fmt(S.vari, p.v)}</span></button>`).join("");
+    $("g-top").querySelectorAll("button").forEach(b => b.onclick = () => abrirCajon(b.dataset.id));
+  }
+
+  const COLS_TABLA = [["nombre", "Estación"], ["fuente", "Fuente"], ["vert", "Vertiente"], ["alt", "Alt. (m)"], ["ta", "T (°C)"], ["hr", "HR (%)"],
+    ["prec24", "Prec. 24 h (mm)"], ["vv", "Viento (km/h)"], ["vmax", "Racha (km/h)"], ["dv", "Dir."]];
+  const PUNTOS = ["N", "NE", "E", "SE", "S", "SO", "O", "NO"];
+  const rumbo = d => d == null ? "—" : PUNTOS[Math.round(d / 45) % 8];
+  function renderTabla() {
+    const txt = S.texto.trim().toLowerCase();
+    const filas = [];
+    for (const e of S.est.values()) {
+      if (!visible(e) || (txt && !e.nombre.toLowerCase().includes(txt))) continue;
+      const f = { id: e.id, nombre: e.nombre, fuente: e.fuente === "AGROCABILDO" ? "AgroCabildo" : e.fuente, vert: VERT[e.vert].split(" ")[0], alt: e.alt };
+      for (const v of ["ta", "hr", "prec24", "vv", "vmax"]) f[v] = valor(e.id, S.idx, v).v;
+      f.dv = valor(e.id, S.idx, "vv").dv ?? null;
+      filas.push(f);
+    }
+    const { col, desc } = S.orden;
+    filas.sort((a, b) => {
+      const x = a[col], y = b[col];
+      if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+      const r = typeof x === "string" ? x.localeCompare(y, "es") : x - y;
+      return desc ? -r : r;
+    });
+    const t = S.horas[S.idx];
+    $("tit-tabla").textContent = `Estaciones · ${filas.length} · ${t ? G.fmtCompleto.format(t) : ""}`;
+    const celda = (v, x) => x == null ? `<td class="sd">—</td>` : `<td>${v}</td>`;
+    $("tabla").innerHTML = `<thead><tr>${COLS_TABLA.map(([c, n]) => `<th><button data-c="${c}">${n}${c === col ? (desc ? " ▼" : " ▲") : ""}</button></th>`).join("")}</tr></thead><tbody>` +
+      filas.map(f => `<tr data-id="${esc(f.id)}"><td>${esc(f.nombre)}</td><td>${f.fuente}</td><td>${f.vert}</td>${celda(f.alt == null ? "" : Math.round(f.alt).toLocaleString("es-ES"), f.alt)}` +
+        `${celda(fmt("ta", f.ta), f.ta)}${celda(fmt("hr", f.hr), f.hr)}${celda(fmt("prec24", f.prec24), f.prec24)}${celda(fmt("vv", f.vv), f.vv)}${celda(fmt("vmax", f.vmax), f.vmax)}` +
+        `${celda(rumbo(f.dv), f.dv)}</tr>`).join("") + "</tbody>";
+    $("tabla").querySelectorAll("th button").forEach(b => b.onclick = () => {
+      const c = b.dataset.c;
+      S.orden = { col: c, desc: S.orden.col === c ? !S.orden.desc : !["nombre", "fuente", "vert"].includes(c) };
+      renderTabla();
+    });
+    $("tabla").querySelectorAll("tbody tr").forEach(tr => tr.onclick = () => abrirCajon(tr.dataset.id));
+  }
+
+  function renderRosa() {
+    const sect = new Array(8).fill(0); let n = 0, suma = 0, racha = null;
+    for (const e of S.est.values()) {
+      if (!visible(e)) continue;
+      const r = valor(e.id, S.idx, "vv");
+      if (r.v == null) continue;
+      n++; suma += r.v;
+      if (r.dv != null) sect[Math.round(r.dv / 45) % 8] += Math.max(r.v, 0.5);
+      const g = valor(e.id, S.idx, "vmax");
+      if (g.v != null && (!racha || g.v > racha.v)) racha = { v: g.v, e };
+    }
+    if (!n) { $("g-rosa").innerHTML = `<div class="vacio">Sin datos de viento en la hora seleccionada</div>`; return; }
+    const mx = Math.max(...sect, 1e-9), dom = sect.indexOf(Math.max(...sect)), azul = AZUL();
+    const petalos = sect.map((w, i) => {
+      if (!w) return "";
+      const r = 12 + 38 * w / mx, a0 = (i * 45 - 18) * Math.PI / 180, a1 = (i * 45 + 18) * Math.PI / 180;
+      const p = a => `${(r * Math.sin(a)).toFixed(1)},${(-r * Math.cos(a)).toFixed(1)}`;
+      return `<path d="M0,0 L${p(a0)} A${r.toFixed(1)},${r.toFixed(1)} 0 0 1 ${p(a1)} Z" fill="${azul}" opacity="${(0.35 + 0.65 * w / mx).toFixed(2)}"/>`;
+    }).join("");
+    $("g-rosa").innerHTML = `<div class="rosa"><svg viewBox="-62 -62 124 124" width="150" height="150" role="img" aria-label="Rosa de vientos de la red: dominante del ${PUNTOS[dom]}">
+      <circle r="50" fill="none" stroke="#dfe3e8"/><circle r="31" fill="none" stroke="#e6e9ee"/><line x1="-50" x2="50" stroke="#e6e9ee"/><line y1="-50" y2="50" stroke="#e6e9ee"/>${petalos}
+      <text y="-53" font-size="10" text-anchor="middle" fill="#5f6b7a">N</text><text x="54" y="3.5" font-size="10" fill="#5f6b7a">E</text>
+      <text y="60" font-size="10" text-anchor="middle" fill="#5f6b7a">S</text><text x="-61" y="3.5" font-size="10" fill="#5f6b7a">O</text></svg>
+      <div class="rosa-texto"><div><b>Dominante:</b> ${PUNTOS[dom]}</div><div><b>Medio de la red:</b> ${fmt("vv", suma / n)} km/h (${n} est.)</div>
+      ${racha ? `<div><b>Racha máxima:</b> ${fmt("vmax", racha.v)} km/h · ${esc(racha.e.nombre)}</div>` : ""}
+      <div style="color:#5f6b7a;font-size:12px">Pétalos ponderados por la velocidad media</div></div></div>`;
   }
 
   function renderPerfil() {
@@ -472,7 +612,8 @@
     if (t == null) { $("lbl-tiempo").textContent = "sin datos"; return; }
     const n = S.porHora.get(t)?.size || 0;
     const fin = S.idx === S.horas.length - 1;
-    $("lbl-tiempo").innerHTML = `${G.fmtCompleto.format(t)} <small>h. canaria · ${n} est.${fin ? " · último" : ""}</small>`;
+    $("lbl-tiempo").innerHTML = `${G.fmtCompleto.format(t)} <small>h. canaria · ${n} est.${fin ? " · último dato" : ""}</small>`;
+    $("tit-mapa").textContent = `${VARS[S.vari].n} (${VARS[S.vari].u}) · ${G.fmtCompleto.format(t)}`;
   }
 
   let temporizadorSup = null;
@@ -480,6 +621,7 @@
     document.querySelectorAll("#selector-variable button, #chips button").forEach(b => b.classList.toggle("activo", b.dataset.v === S.vari));
     $("fila-lapse").style.display = S.vari === "ta" ? "" : "none";
     renderTiempo(); renderMarcadores(); renderLeyenda(); renderKPIs(); renderPerfil();
+    renderTendencia(); renderTop(); renderTabla(); renderRosa();
     clearTimeout(temporizadorSup);
     temporizadorSup = setTimeout(() => superficie.redraw(), cambioVariable ? 0 : 60);
   }
@@ -489,16 +631,14 @@
     S.sel = id;
     const e = S.est.get(id);
     if (!e) return;
-    document.body.classList.remove("panel-abierto");
     $("cajon").classList.remove("oculto");
-    setTimeout(() => mapa.invalidateSize(), 50);
-    $("cajon-cab").innerHTML = `<h2>${e.nombre}</h2><div class="meta">${e.fuente} · código ${e.codigo} · ${Math.round(e.alt ?? 0)} m · ${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}</div>`;
+    $("cajon-cab").innerHTML = `<h2>${esc(e.nombre)}</h2><div class="meta">${e.fuente === "AGROCABILDO" ? "AgroCabildo" : e.fuente} · código ${esc(e.codigo)} · ${VERT[e.vert]} · ${Math.round(e.alt ?? 0)} m · ${e.lat.toFixed(4)}, ${e.lon.toFixed(4)}</div>`;
     const ult = (S.porEst.get(id) || []).slice(-1)[0];
     const celdas = [["ta", "Temp."], ["hr", "Humedad"], ["prec24", "Prec. 24 h"], ["vv", "Viento"], ["vmax", "Racha"], ["pres", "Presión"]];
     $("cajon-actual").innerHTML = celdas.map(([v, t]) => {
       const r = valor(id, S.horas.length - 1, v);
-      return `<div><div class="t">${t}</div><div class="v">${fmt(v, r.v)} <small style="font-size:11px;color:#8b98a8">${VARS[v].u}</small></div></div>`;
-    }).join("") + (ult ? `<div style="grid-column:span 3;font-size:11px;color:#8b98a8">Último registro: ${G.fmtCompleto.format(ult.t)} (h. canaria)${ult.dv != null ? ` · dir. viento ${Math.round(ult.dv)}°` : ""}</div>` : "");
+      return `<div><div class="t">${t}</div><div class="v">${fmt(v, r.v)} <small>${VARS[v].u}</small></div></div>`;
+    }).join("") + (ult ? `<div class="ultimo">Último registro: ${G.fmtCompleto.format(ult.t)} (h. canaria)${ult.dv != null ? ` · dir. viento ${Math.round(ult.dv)}° (${rumbo(ult.dv)})` : ""}</div>` : "");
     $("btn-csv").onclick = ev => { ev.preventDefault(); descargarCSV(id, Math.max(S.diasCajon, 1)); };
     if (!silencioso) document.querySelectorAll(".rango button").forEach(b => b.classList.toggle("activo", +b.dataset.dias === S.diasCajon));
     let r;
@@ -512,27 +652,28 @@
     if (diaria) {
       G.serieTemporal($("g-temp"), [
         { nombre: "Máx.", color: "#e0553a", datos: s("tmax"), unidad: "°C" },
-        { nombre: "Media", color: "#efe26a", datos: s("tmed"), unidad: "°C" },
-        { nombre: "Mín.", color: "#3fb6d6", datos: s("tmin"), unidad: "°C" }], op);
-      G.serieTemporal($("g-hr"), [{ nombre: "HR media", color: "#4aa6c8", datos: s("hrmed"), unidad: "%" }], { ...op, minY: 0, maxY: 100 });
-      G.serieTemporal($("g-prec"), [{ nombre: "Precipitación", color: "#6ab8ea", datos: s("prec"), unidad: "mm", tipo: "barras" }], { ...op, desdeCero: true, maxY: 1 });
+        { nombre: "Media", color: AZUL(), datos: s("tmed"), unidad: "°C" },
+        { nombre: "Mín.", color: "#2f6fd0", datos: s("tmin"), unidad: "°C" }], op);
+      G.serieTemporal($("g-hr"), [{ nombre: "HR media", color: AZUL(), datos: s("hrmed"), unidad: "%" }], { ...op, minY: 0, maxY: 100 });
+      G.serieTemporal($("g-prec"), [{ nombre: "Precipitación", color: AZUL(), datos: s("prec"), unidad: "mm", tipo: "barras" }], { ...op, desdeCero: true, maxY: 1 });
       G.serieTemporal($("g-viento"), [
-        { nombre: "Media", color: "#5fbf9b", datos: s("vvmed", 3.6), unidad: "km/h" },
-        { nombre: "Racha", color: "#ef8a3a", datos: s("racha", 3.6), unidad: "km/h" }], { ...op, desdeCero: true });
+        { nombre: "Media", color: AZUL(), datos: s("vvmed", 3.6), unidad: "km/h" },
+        { nombre: "Racha", color: "#e8833a", datos: s("racha", 3.6), unidad: "km/h" }], { ...op, desdeCero: true });
     } else {
-      G.serieTemporal($("g-temp"), [{ nombre: "Temperatura", color: "#f4a641", datos: s("ta"), unidad: "°C" }], op);
-      G.serieTemporal($("g-hr"), [{ nombre: "HR", color: "#4aa6c8", datos: s("hr"), unidad: "%" }], { ...op, minY: 0, maxY: 100 });
+      G.serieTemporal($("g-temp"), [{ nombre: "Temperatura", color: "#e0553a", datos: s("ta"), unidad: "°C" }], op);
+      G.serieTemporal($("g-hr"), [{ nombre: "HR", color: AZUL(), datos: s("hr"), unidad: "%" }], { ...op, minY: 0, maxY: 100 });
       let acum = 0;
       const acumulada = d.map(f => { acum += f.prec || 0; return [T(f), +acum.toFixed(1)]; });
       G.serieTemporal($("g-prec"), [
-        { nombre: "Horaria", color: "#6ab8ea", datos: s("prec"), unidad: "mm", tipo: "barras" },
-        { nombre: "Acumulada", color: "#b33bb3", datos: acumulada, unidad: "mm", grosor: 1.2, discontinua: true }], { ...op, desdeCero: true, maxY: 1 });
+        { nombre: "Horaria", color: AZUL(), datos: s("prec"), unidad: "mm", tipo: "barras" },
+        { nombre: "Acumulada", color: "#e8833a", datos: acumulada, unidad: "mm", grosor: 1.4, discontinua: true }], { ...op, desdeCero: true, maxY: 1 });
       G.serieTemporal($("g-viento"), [
-        { nombre: "Medio", color: "#5fbf9b", datos: s("vv", 3.6), unidad: "km/h", flechas: d.map(f => [T(f), f.dv, f.vv]) },
-        { nombre: "Racha", color: "#ef8a3a", datos: s("vmax", 3.6), unidad: "km/h" }], { ...op, desdeCero: true, alto: 150 });
+        { nombre: "Medio", color: AZUL(), datos: s("vv", 3.6), unidad: "km/h", flechas: d.map(f => [T(f), f.dv, f.vv]) },
+        { nombre: "Racha", color: "#e8833a", datos: s("vmax", 3.6), unidad: "km/h" }], { ...op, desdeCero: true, alto: 150 });
     }
   }
-  $("btn-cerrar").onclick = () => { S.sel = null; $("cajon").classList.add("oculto"); setTimeout(() => mapa.invalidateSize(), 50); };
+  $("btn-cerrar").onclick = () => { S.sel = null; $("cajon").classList.add("oculto"); };
+  document.addEventListener("keydown", ev => { if (ev.key === "Escape" && S.sel) $("btn-cerrar").click(); });
   document.querySelectorAll(".rango button").forEach(b => b.onclick = () => {
     S.diasCajon = +b.dataset.dias;
     document.querySelectorAll(".rango button").forEach(x => x.classList.toggle("activo", x === b));
@@ -546,9 +687,9 @@
     try { e = await DATOS.estado(); } catch { $("st-ultimo").textContent = "sin conexión"; return; }
     S.modo = e.modo;
     const ins = $("insignia-modo");
-    ins.textContent = e.modo === "demo" ? "demo · datos sintéticos" : e.modo === "nube" ? "tiempo real · nube" : "tiempo real";
+    ins.textContent = e.modo === "demo" ? "demo · datos sintéticos" : "tiempo real";
     ins.className = "insignia " + (e.modo === "demo" ? "demo" : "real");
-    $("st-ultimo").textContent = e.ultima_obs ? G.fmtCompleto.format(Date.parse(e.ultima_obs)) : "—";
+    $("st-ultimo").textContent = e.ultima_obs ? G.fmtCompleto.format(Date.parse(e.ultima_obs)).replace(/,/g, "") : "—";
     $("st-proxima").textContent = e.en_curso ? "descargando…" : (e.proxima_actualizacion ? (EST ? "≈ " : "") + G.fmtHora.format(Date.parse(e.proxima_actualizacion)) : "manual");
     // chips por fuente
     const errores = {};
@@ -580,10 +721,12 @@
   // ------------------------------------------------------------------ controles
   $("rng-tiempo").oninput = ev => { S.idx = +ev.target.value; render(); };
   $("btn-ahora").onclick = () => { S.idx = S.horas.length - 1; $("rng-tiempo").value = S.idx; render(); };
+  const ICO_PLAY = $("btn-play").innerHTML;
+  const ICO_PAUSA = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 2 H6.5 V14 H3 Z M9.5 2 H13 V14 H9.5 Z" fill="currentColor"/></svg>';
   $("btn-play").onclick = () => {
-    if (S.jugando) { clearInterval(S.jugando); S.jugando = null; $("btn-play").textContent = "▶"; return; }
-    if (S.idx >= S.horas.length - 1) S.idx = Math.max(0, S.horas.length - 25);
-    $("btn-play").textContent = "❚❚";
+    if (S.jugando) { clearInterval(S.jugando); S.jugando = null; $("btn-play").innerHTML = ICO_PLAY; return; }
+    if (S.idx >= S.horas.length - 1) S.idx = +$("rng-tiempo").min;
+    $("btn-play").innerHTML = ICO_PAUSA;
     S.jugando = setInterval(() => {
       if (S.idx >= S.horas.length - 1) { $("btn-play").click(); return; }
       S.idx++; $("rng-tiempo").value = S.idx; render();
@@ -593,13 +736,20 @@
   $("rng-opacidad").oninput = ev => superficie.setOpacity(+ev.target.value);
   $("sel-fondo").onchange = ev => ponerFondo(ev.target.value);
   $("chk-gris").onchange = ev => mapa.getContainer().classList.toggle("atenuado", ev.target.checked);
-  $("btn-panel").onclick = () => document.body.classList.toggle("panel-abierto");
-  $("panel-cerrar").onclick = () => document.body.classList.remove("panel-abierto");
-  mapa.on("click", () => document.body.classList.remove("panel-abierto"));
-  if (EST) {
-    $("btn-actualizar").textContent = "⟳";
-    $("btn-actualizar").title = "Recargar datos";
+  if (EST) $("btn-actualizar").title = "Recargar datos";
+  $("buscar").oninput = ev => { S.texto = ev.target.value; renderTabla(); };
+  // pestañas de página (escritorio) y barra inferior (móvil)
+  function cambiarVista(attr, v, botones) {
+    document.body.dataset[attr] = v;
+    document.querySelectorAll(botones).forEach(b => b.classList.toggle("activa", b.dataset[attr] === v));
+    $("cuerpo").scrollTop = 0;
+    S.cacheTend = "";
+    setTimeout(() => { mapa.invalidateSize(); render(); }, 30);
   }
+  document.querySelectorAll("#pestanas button").forEach(b => b.onclick = () => cambiarVista("vista", b.dataset.vista, "#pestanas button"));
+  document.querySelectorAll("#nav-movil button").forEach(b => b.onclick = () => cambiarVista("vm", b.dataset.vm, "#nav-movil button"));
+  let tempRedim = null;
+  window.addEventListener("resize", () => { clearTimeout(tempRedim); tempRedim = setTimeout(() => { S.cacheTend = ""; render(); }, 200); });
   $("btn-actualizar").onclick = async () => {
     if (EST) { S.ultimaAct = null; cacheSeries.clear(); await sondearEstado(); return; }
     $("btn-actualizar").classList.add("girando");
@@ -608,7 +758,7 @@
   };
   document.addEventListener("keydown", ev => {
     if (ev.target.tagName === "INPUT" && ev.target.type !== "range") return;
-    if (ev.key === "ArrowLeft") { S.idx = Math.max(0, S.idx - 1); $("rng-tiempo").value = S.idx; render(); }
+    if (ev.key === "ArrowLeft") { S.idx = Math.max(+$("rng-tiempo").min, S.idx - 1); $("rng-tiempo").value = S.idx; render(); }
     if (ev.key === "ArrowRight") { S.idx = Math.min(S.horas.length - 1, S.idx + 1); $("rng-tiempo").value = S.idx; render(); }
   });
 
@@ -621,12 +771,13 @@
 
   (async function iniciar() {
     construirSelector();
+    construirPeriodo();
     construirSelectorFondo();
     await cargarIsla();
     ponerFondo("ign_base");
     try {
       const c = await DATOS.config();
-      S.horasVisor = c.horas_visor || 72;
+      S.horasVisor = c.horas_visor || 168;
     } catch { }
     await sondearEstado();
     // comprueba cada minuto si hay datos nuevos (cada 15 s mientras aún no haya ninguno)

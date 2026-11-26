@@ -44,7 +44,7 @@
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H }, contenedor);
     const todos = series.flatMap(s => s.datos.filter(d => d[1] != null));
     if (!todos.length) {
-      el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "#8b98a8", "font-size": 12 }, svg).textContent = "Sin datos";
+      el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "#5f6b7a", "font-size": 12 }, svg).textContent = "Sin datos";
       return;
     }
     const t0 = Math.min(...todos.map(d => d[0])), t1 = Math.max(...todos.map(d => d[0]));
@@ -91,7 +91,7 @@
         s.flechas.forEach(([t, dir, v], i) => {
           if (dir == null || v == null || i % cada) return;
           const gg = el("g", { transform: `translate(${x(t)},${m.t + 6}) rotate(${dir + 180})` }, svg);
-          el("path", { d: "M0,-5 L3,3 L0,1 L-3,3 Z", fill: "#9fb3c8" }, gg);
+          el("path", { d: "M0,-5 L3,3 L0,1 L-3,3 Z", fill: "#5f6b7a" }, gg);
         });
       }
     });
@@ -110,7 +110,7 @@
       });
       if (tt == null) return;
       guia.setAttribute("x1", x(tt)); guia.setAttribute("x2", x(tt)); guia.setAttribute("visibility", "visible");
-      mostrarTip(ev, `<div style="color:#8b98a8">${diaria && opc.escalaDiaria ? fmtDia.format(tt) : fmtCompleto.format(tt)}</div>` + html);
+      mostrarTip(ev, `<div style="color:#5f6b7a">${diaria && opc.escalaDiaria ? fmtDia.format(tt) : fmtCompleto.format(tt)}</div>` + html);
     });
     capa.addEventListener("mouseleave", () => { guia.setAttribute("visibility", "hidden"); ocultarTip(); });
   }
@@ -123,7 +123,7 @@
     const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, height: H }, contenedor);
     const ps = puntos.filter(p => p.x != null && p.y != null);
     if (ps.length < 2) {
-      el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "#8b98a8", "font-size": 12 }, svg).textContent = "Sin datos suficientes";
+      el("text", { x: W / 2, y: H / 2, "text-anchor": "middle", fill: "#5f6b7a", "font-size": 12 }, svg).textContent = "Sin datos suficientes";
       return;
     }
     const ex = escalaBonita(Math.min(...ps.map(p => p.x)), Math.max(...ps.map(p => p.x)), 4);
@@ -137,12 +137,12 @@
     el("text", { x: m.l - 4, y: 9, "text-anchor": "end" }, ge).textContent = "alt. (m)";
     if (opc.lineaRef) {   // gradiente teórico de referencia
       const [a, b] = opc.lineaRef;
-      el("path", { d: `M${x(a[0])},${y(a[1])} L${x(b[0])},${y(b[1])}`, stroke: "#6a7a8c", "stroke-dasharray": "4 3", fill: "none" }, svg);
+      el("path", { d: `M${x(a[0])},${y(a[1])} L${x(b[0])},${y(b[1])}`, stroke: "#8a96a5", "stroke-dasharray": "4 3", fill: "none" }, svg);
     }
     ps.forEach(p => {
       const c = el(p.fuente === "AGROCABILDO" ? "rect" : "circle",
         p.fuente === "AGROCABILDO" ? { x: x(p.x) - 4, y: y(p.y) - 4, width: 8, height: 8 } : { cx: x(p.x), cy: y(p.y), r: 4.2 }, svg);
-      c.setAttribute("fill", p.color); c.setAttribute("stroke", "#0d1117"); c.setAttribute("stroke-width", 1);
+      c.setAttribute("fill", p.color); c.setAttribute("stroke", "#ffffff"); c.setAttribute("stroke-width", 1);
       c.style.cursor = "pointer";
       c.addEventListener("mousemove", ev => mostrarTip(ev, `<b>${p.nombre}</b><br>${p.x} ${opc.unidad || ""} · ${Math.round(p.y)} m`));
       c.addEventListener("mouseleave", ocultarTip);

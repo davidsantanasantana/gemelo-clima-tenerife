@@ -115,21 +115,25 @@ ves el ciclo diario de AgroCabildo adelantado una hora respecto a AEMET, pon `de
 
 ## El visor
 
-* **Mapa** con las estaciones coloreadas por la variable activa (círculo = AEMET,
-  cuadrado = AgroCabildo), valores y flechas de viento.
-* **Superficie interpolada** (IDW, potencia 2, con decaimiento a ~15 km) recortada a tierra con
-  un MDT global (Terrain Tiles de AWS/Mapzen, resolución de decenas de metros) y con sombreado del relieve.
-  Para la temperatura, las estaciones se reducen a nivel del mar con −6,5 °C/km, se interpolan
-  y se devuelven a la cota de cada píxel. Así el campo de temperatura sigue el relieve en vez de
-  mezclar costa y cumbre. **Ojo con la inversión del alisio:** por encima del mar de nubes el
-  gradiente real se invierte y esa corrección sobrestima el enfriamiento. El *perfil altitudinal*
-  del panel izquierdo enseña cuándo pasa.
-* **Línea de tiempo** con las últimas 72 h (`horas_visor`), botón ▶ para reproducirlas y
-  flechas ← → del teclado.
-* **Ficha de estación** (clic): valores actuales y gráficas de 24 h a 1 año (más de 31 días
-  usa el resumen diario), con exportación CSV.
-* **Estado de las fuentes** en la cabecera: verde < 3 h, ámbar < 24 h, rojo si hay error o no
-  hay datos (pasa el ratón para ver el mensaje).
+Diseño de informe (estilo Power BI): fondo claro, cajas blancas y azul del CIATF. El azul se cambia
+en una sola línea, `--azul` al principio de `web/estilo.css`, y en `theme-color` de
+`web/index.html`.
+
+* **Filtros** (columna izquierda): variable, fuente (AEMET / AgroCabildo), vertiente (norte, sur,
+  cumbre > 1.800 m; norte y sur separados por la dorsal Anaga–Las Cañadas–Teno) y periodo (24 h,
+  72 h, 7 días). Debajo están las opciones del mapa.
+* **Tarjetas KPI**: temperatura media, máxima y mínima (con estación y cota), precipitación máxima
+  en 24 h, racha máxima y estaciones activas, todo para la hora y los filtros seleccionados.
+* **Mapa** de la variable con superficie interpolada (IDW recortado a la costa; en temperatura,
+  corregida con −6,5 °C/km sobre el MDT) y barra para reproducir el periodo.
+* **Tendencia** de la variable por vertiente y **ranking** de las 8 estaciones con valor más alto.
+* **Tabla de estaciones** ordenable (clic en la cabecera) y con buscador.
+* **Rosa de vientos** de la red y **perfil altitudinal**, que muestra la inversión del alisio.
+* **Ficha de estación** (clic en mapa, ranking o tabla): valores actuales, gráficas de 24 h a 1 año
+  y CSV.
+* **Pestañas** inferiores: Tiempo real · Estaciones (tabla completa) · Información (fuentes y
+  metodología).
+* **En el móvil**: barra inferior con Tiempo real, Tendencias, Estaciones y Filtros.
 
 **Fondos cartográficos (WMS oficiales, libres):**
 

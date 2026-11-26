@@ -3,102 +3,180 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#005A9C">
 <meta name="description" content="Observación en tiempo real de temperatura, humedad, precipitación y viento en Tenerife (AEMET y AgroCabildo)">
+<title>Gemelo climático de Tenerife</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="iconos/icono-192.png">
 <link rel="apple-touch-icon" href="iconos/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Clima TF">
-<title>Gemelo climático · Tenerife</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="estilo.css">
 </head>
-<body>
+<body data-vista="tiempo" data-vm="tiempo">
+
 <header id="cabecera">
   <div class="marca">
-    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
-      <path d="M3 25 L11 14 L15 19 L20 9 L29 25 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-      <circle cx="24" cy="7" r="3" fill="currentColor"/>
+    <svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true">
+      <path d="M16 3 C16 3 6 15 6 21 a10 10 0 0 0 20 0 C26 15 16 3 16 3 Z" fill="none" stroke="currentColor" stroke-width="2.2"/>
+      <path d="M10 22 l4 -4 3 2 5 -6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
     </svg>
     <div>
-      <h1>Gemelo climático · Tenerife</h1>
-      <p>Observación en tiempo real de la red de estaciones</p>
+      <h1><span class="largo">Gemelo climático de Tenerife</span><span class="corto">Clima Tenerife</span></h1>
+      <p>Consejo Insular de Aguas de Tenerife · Observación en tiempo real · AEMET + AgroCabildo</p>
     </div>
     <span id="insignia-modo" class="insignia">—</span>
   </div>
   <div class="estado">
     <div><span class="et">Último dato</span><span id="st-ultimo">—</span></div>
-    <div><span class="et">Estaciones activas</span><span id="st-activas">—</span></div>
-    <div><span class="et">Próxima descarga</span><span id="st-proxima">—</span></div>
-    <div id="st-fuentes" class="fuentes"></div>
-    <button id="btn-actualizar" title="Descargar ahora de las fuentes">⟳ Actualizar</button>
+    <div class="solo-escritorio"><span class="et">Próxima actualización</span><span id="st-proxima">—</span></div>
+    <div class="solo-escritorio"><span class="et">Fuentes</span><span id="st-fuentes" class="fuentes"></span></div>
+    <button id="btn-actualizar" title="Descargar ahora de las fuentes" aria-label="Actualizar">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12 a8 8 0 1 1 -2.3 -5.6 M20 4 v5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
   </div>
 </header>
 
-<main>
-  <aside id="panel">
-    <div class="asa"></div>
-    <button id="panel-cerrar" class="solo-movil" title="Cerrar">✕</button>
-    <section>
-      <h2>Variable</h2>
-      <div id="selector-variable" class="rejilla-botones"></div>
-    </section>
-
-    <section id="kpis"></section>
-
-    <section>
-      <h2>Capas</h2>
-      <label class="fila"><input type="checkbox" id="chk-superficie" checked> Superficie interpolada (IDW)</label>
+<div id="cuerpo">
+  <!-- ============ Filtros (segmentaciones) ============ -->
+  <aside id="filtros" data-m="filtros">
+    <div class="grupo">
+      <h3>Variable</h3>
+      <div id="selector-variable" class="lista-botones"></div>
+    </div>
+    <div class="grupo">
+      <h3>Fuente</h3>
+      <div id="filtro-fuentes"></div>
+    </div>
+    <div class="grupo">
+      <h3>Vertiente</h3>
+      <div id="filtro-vertiente"></div>
+    </div>
+    <div class="grupo">
+      <h3>Periodo</h3>
+      <div id="filtro-periodo" class="segmentado"></div>
+    </div>
+    <div class="grupo">
+      <h3>Mapa</h3>
+      <label class="fila"><input type="checkbox" id="chk-superficie" checked> Superficie interpolada</label>
       <label class="fila sub" id="fila-lapse"><input type="checkbox" id="chk-lapse" checked> Corrección altitudinal (−6,5 °C/km)</label>
       <label class="fila sub"><input type="checkbox" id="chk-relieve" checked> Sombreado del relieve</label>
       <label class="fila"><input type="checkbox" id="chk-etiquetas" checked> Valores sobre las estaciones</label>
       <label class="fila"><input type="checkbox" id="chk-flechas" checked> Flechas de viento</label>
-      <div class="fila">Opacidad <input type="range" id="rng-opacidad" min="0.2" max="1" step="0.05" value="0.72"></div>
-      <div class="fila">Fondo
-        <select id="sel-fondo"></select>
+      <label class="fila columna">Opacidad de la superficie <input type="range" id="rng-opacidad" min="0.2" max="1" step="0.05" value="0.72"></label>
+      <label class="fila columna">Fondo cartográfico <select id="sel-fondo"></select></label>
+      <label class="fila"><input type="checkbox" id="chk-gris" checked> Fondo atenuado en grises</label>
+    </div>
+  </aside>
+
+  <!-- ============ Informe ============ -->
+  <main id="informe">
+    <div id="chips" class="solo-movil" data-m="tiempo"></div>
+    <div id="kpis" data-d="tiempo" data-m="tiempo"></div>
+
+    <div class="fila-tiles">
+      <section class="tile t-mapa" data-d="tiempo" data-m="tiempo">
+        <h2 id="tit-mapa">Mapa</h2>
+        <div id="zona-mapa">
+          <div id="mapa"></div>
+          <div id="leyenda"></div>
+          <div id="aviso" class="oculto"></div>
+        </div>
+        <div id="linea-tiempo">
+          <button id="btn-play" title="Reproducir el periodo" aria-label="Reproducir">
+            <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2 L13 8 L4 14 Z" fill="currentColor"/></svg>
+          </button>
+          <input type="range" id="rng-tiempo" min="0" max="0" value="0" aria-label="Hora">
+          <div id="lbl-tiempo">—</div>
+          <button id="btn-ahora" title="Ir al último dato">Ahora</button>
+        </div>
+      </section>
+      <div class="col" data-d="tiempo">
+        <section class="tile" data-m="tendencias">
+          <h2 id="tit-tend">Tendencia</h2>
+          <div id="leyenda-tend" class="leyenda-linea"></div>
+          <div id="g-tend"></div>
+        </section>
+        <section class="tile" data-m="tendencias">
+          <h2 id="tit-top">Ranking</h2>
+          <div id="g-top" class="barras"></div>
+        </section>
       </div>
-      <label class="fila sub"><input type="checkbox" id="chk-gris" checked> Fondo atenuado en grises</label>
-      <div id="filtro-fuentes" class="fila envolver"></div>
+    </div>
+
+    <div class="fila-tiles">
+      <section class="tile t-tabla" data-d="tiempo estaciones" data-m="estaciones">
+        <div class="cab-tile">
+          <h2 id="tit-tabla">Estaciones</h2>
+          <input type="search" id="buscar" placeholder="Buscar estación…" aria-label="Buscar estación">
+        </div>
+        <div class="tabla-caja"><table id="tabla"></table></div>
+      </section>
+      <div class="col" data-d="tiempo">
+        <section class="tile" data-m="tendencias">
+          <h2>Viento · dirección dominante</h2>
+          <div id="g-rosa"></div>
+        </section>
+        <section class="tile" data-m="tendencias">
+          <h2>Perfil altitudinal <small>(hora seleccionada)</small></h2>
+          <div id="perfil" class="grafico-perfil"></div>
+        </section>
+      </div>
+    </div>
+
+    <section class="tile t-info" data-d="info" data-m="filtros">
+      <h2>Información</h2>
+      <div class="texto-info">
+        <p><b>Fuentes.</b> AEMET OpenData (observación convencional horaria, sin validar) y API Meteo del Cabildo de Tenerife (red AgroCabildo, datos diezminutales agregados a escala horaria). Cartografía: CNIG/IGN y GRAFCAN. Contorno insular: GRAFCAN.</p>
+        <p><b>Actualización.</b> Las fuentes se descargan cada hora. Las horas se muestran en hora canaria.</p>
+        <p><b>Superficie interpolada.</b> Inverso de la distancia (IDW, potencia 2) recortado a la costa. En temperatura se reduce cada estación a nivel del mar con −6,5 °C/km y se devuelve a la cota del modelo digital del terreno. Con inversión del alisio esa corrección sobrestima el enfriamiento en cumbre.</p>
+        <p><b>Vertientes.</b> Norte y sur se separan por la dorsal Anaga–Las Cañadas–Teno; «cumbre» agrupa las estaciones por encima de 1.800 m.</p>
+        <p><b>Racha.</b> AgroCabildo no tiene sensor de racha: se usa el máximo de las medias diezminutales de la hora, que subestima la racha real.</p>
+        <p><b>Datos provisionales.</b> No usar para fines oficiales sin validación.</p>
+      </div>
     </section>
 
-    <section>
-      <h2>Perfil altitudinal <small>(hora seleccionada)</small></h2>
-      <div id="perfil" class="grafico-perfil"></div>
-    </section>
-  </aside>
+    <div class="pie" data-d="tiempo estaciones info">Fuentes: AEMET OpenData · API Meteo del Cabildo de Tenerife (AgroCabildo) · cartografía CNIG/IGN y GRAFCAN.</div>
+  </main>
+</div>
 
-  <section id="zona-mapa">
-    <div id="mapa"></div>
-    <div id="chips" class="solo-movil"></div>
-    <button id="btn-panel" class="solo-movil" title="Capas y resumen">☰ Capas</button>
-    <div id="leyenda"></div>
-    <div id="aviso" class="oculto"></div>
-    <div id="linea-tiempo">
-      <button id="btn-play" title="Reproducir">▶</button>
-      <input type="range" id="rng-tiempo" min="0" max="0" value="0">
-      <div id="lbl-tiempo">—</div>
-      <button id="btn-ahora" title="Ir al último dato">Ahora</button>
-    </div>
-  </section>
+<!-- Pestañas de página (escritorio) -->
+<nav id="pestanas" aria-label="Páginas del informe">
+  <button data-vista="tiempo" class="activa">Tiempo real</button>
+  <button data-vista="estaciones">Estaciones</button>
+  <button data-vista="info">Información</button>
+</nav>
 
-  <aside id="cajon" class="oculto">
-    <div class="asa"></div>
-    <button id="btn-cerrar" title="Cerrar">✕</button>
-    <div id="cajon-cab"></div>
-    <div id="cajon-actual" class="tabla-actual"></div>
-    <div class="rango">
-      <button data-dias="1">24 h</button><button data-dias="3">3 d</button><button data-dias="7" class="activo">7 d</button><button data-dias="30">30 d</button><button data-dias="365">1 año</button>
-      <a id="btn-csv" class="boton-enlace" href="#">CSV</a>
-    </div>
-    <div class="graf"><h3>Temperatura (°C)</h3><div id="g-temp"></div></div>
-    <div class="graf"><h3>Humedad relativa (%)</h3><div id="g-hr"></div></div>
-    <div class="graf"><h3>Precipitación (mm)</h3><div id="g-prec"></div></div>
-    <div class="graf"><h3>Viento y racha (km/h)</h3><div id="g-viento"></div></div>
-  </aside>
-</main>
+<!-- Barra inferior (móvil) -->
+<nav id="nav-movil" aria-label="Secciones">
+  <button data-vm="tiempo" class="activa">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12 L12 4 L21 12 M6 10 V20 H18 V10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>Tiempo real</button>
+  <button data-vm="tendencias">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18 L9 11 L13 15 L21 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Tendencias</button>
+  <button data-vm="estaciones">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="10" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 14 V21" stroke="currentColor" stroke-width="2"/></svg>Estaciones</button>
+  <button data-vm="filtros">
+    <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6 H20 M7 12 H17 M10 18 H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>Filtros</button>
+</nav>
+
+<!-- Ficha de estación -->
+<aside id="cajon" class="oculto" aria-label="Ficha de estación">
+  <div class="asa"></div>
+  <button id="btn-cerrar" title="Cerrar" aria-label="Cerrar">✕</button>
+  <div id="cajon-cab"></div>
+  <div id="cajon-actual" class="tabla-actual"></div>
+  <div class="rango">
+    <button data-dias="1">24 h</button><button data-dias="3">3 d</button><button data-dias="7" class="activo">7 d</button><button data-dias="30">30 d</button><button data-dias="365">1 año</button>
+    <a id="btn-csv" class="boton-enlace" href="#">Descargar CSV</a>
+  </div>
+  <div class="graf"><h3>Temperatura (°C)</h3><div id="g-temp"></div></div>
+  <div class="graf"><h3>Humedad relativa (%)</h3><div id="g-hr"></div></div>
+  <div class="graf"><h3>Precipitación (mm)</h3><div id="g-prec"></div></div>
+  <div class="graf"><h3>Viento y racha (km/h)</h3><div id="g-viento"></div></div>
+</aside>
 
 <div id="tooltip" class="oculto"></div>
 <script src="config.js"></script>

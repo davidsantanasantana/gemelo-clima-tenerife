@@ -40,7 +40,7 @@ RESUMEN = os.path.join(DATOS, "resumen")
 SITIO = os.path.join(RAIZ, "_site")
 DIAS_CARGA = 35            # días de CSV que se cargan (≥ 31 para las series horarias de la app)
 DIAS_EXPORTA = 4           # días que se reescriben en cada ciclo (cubre las 72 h de la primera descarga)
-HORAS_VISOR = 72
+HORAS_VISOR = 168          # 7 días: el filtro «Periodo» del visor llega hasta aquí
 COLS_RES = ["estacion_id", "dia", "tmed", "tmax", "tmin", "hrmed", "prec", "vvmed", "racha", "radmed", "n_horas"]
 
 FONDOS_WMS = [

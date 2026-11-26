@@ -9,7 +9,7 @@ modo = real
 carpeta_datos = datos
 puerto = 8765
 ; horas de datos que carga el visor para el mapa y la reproducción temporal
-horas_visor = 72
+horas_visor = 168
 
 [programador]
 ; si = el propio servidor (gemelo.py) lanza la descarga horaria y la consolidación diaria.
