@@ -28,9 +28,6 @@ jobs:
   actualizar:
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    environment:
-      name: github-pages
-      url: ${{ steps.despliegue.outputs.page_url }}
     steps:
       - name: Obtener el repositorio
         uses: actions/checkout@v6
@@ -62,28 +59,45 @@ jobs:
         with:
           path: _site
 
-      # deploy-pages busca el artefacto una sola vez y, por un fallo conocido de GitHub
-      # (actions/deploy-pages#451), a veces aún no aparece aunque se acabe de subir.
-      # Se reintenta SOLO la publicación (subirlo dos veces haría fallar la búsqueda).
+  # Publicación en un trabajo aparte (recomendación de actions/deploy-pages). Además se reintenta:
+  # deploy-pages busca el artefacto una sola vez y, por un fallo conocido de GitHub
+  # (actions/deploy-pages#451), a veces aún no aparece aunque se acabe de subir.
+  # Solo se reintenta la publicación: subir el artefacto dos veces haría fallar la búsqueda.
+  publicar:
+    needs: actualizar
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.p1.outputs.page_url || steps.p2.outputs.page_url || steps.p3.outputs.page_url || steps.p4.outputs.page_url }}
+    steps:
       - name: Publicar la app
-        id: despliegue
+        id: p1
         continue-on-error: true
         uses: actions/deploy-pages@v5
 
-      - name: Esperar antes de reintentar
-        if: steps.despliegue.outcome == 'failure'
-        run: sleep 45
-
+      - name: Esperar (15 s)
+        if: steps.p1.outcome == 'failure'
+        run: sleep 15
       - name: Publicar la app (2.º intento)
-        id: despliegue2
-        if: steps.despliegue.outcome == 'failure'
+        id: p2
+        if: steps.p1.outcome == 'failure'
         continue-on-error: true
         uses: actions/deploy-pages@v5
 
-      - name: Esperar antes del último intento
-        if: steps.despliegue.outcome == 'failure' && steps.despliegue2.outcome == 'failure'
-        run: sleep 90
-
+      - name: Esperar (45 s)
+        if: steps.p1.outcome == 'failure' && steps.p2.outcome == 'failure'
+        run: sleep 45
       - name: Publicar la app (3.er intento)
-        if: steps.despliegue.outcome == 'failure' && steps.despliegue2.outcome == 'failure'
+        id: p3
+        if: steps.p1.outcome == 'failure' && steps.p2.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Esperar (90 s)
+        if: steps.p1.outcome == 'failure' && steps.p2.outcome == 'failure' && steps.p3.outcome == 'failure'
+        run: sleep 90
+      - name: Publicar la app (4.º intento)
+        id: p4
+        if: steps.p1.outcome == 'failure' && steps.p2.outcome == 'failure' && steps.p3.outcome == 'failure'
         uses: actions/deploy-pages@v5
