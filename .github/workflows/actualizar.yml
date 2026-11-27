@@ -55,13 +55,35 @@ jobs:
           fi
 
       - name: Preparar GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Subir la app
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
+      # deploy-pages busca el artefacto una sola vez y, por un fallo conocido de GitHub
+      # (actions/deploy-pages#451), a veces aún no aparece aunque se acabe de subir.
+      # Se reintenta SOLO la publicación (subirlo dos veces haría fallar la búsqueda).
       - name: Publicar la app
         id: despliegue
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Esperar antes de reintentar
+        if: steps.despliegue.outcome == 'failure'
+        run: sleep 45
+
+      - name: Publicar la app (2.º intento)
+        id: despliegue2
+        if: steps.despliegue.outcome == 'failure'
+        continue-on-error: true
+        uses: actions/deploy-pages@v5
+
+      - name: Esperar antes del último intento
+        if: steps.despliegue.outcome == 'failure' && steps.despliegue2.outcome == 'failure'
+        run: sleep 90
+
+      - name: Publicar la app (3.er intento)
+        if: steps.despliegue.outcome == 'failure' && steps.despliegue2.outcome == 'failure'
         uses: actions/deploy-pages@v5
