@@ -30,6 +30,7 @@ sys.path.insert(0, RAIZ)
 import colector  # noqa: E402
 from almacen import VARIABLES, iso_hora, ahora_utc  # noqa: E402
 from fuentes.comun import en_tenerife, http_get  # noqa: E402
+from fuentes import avisos  # noqa: E402
 
 # Servidores de cartografía permitidos para la lectura de capacidades WMS (CNIG/IGN y GRAFCAN)
 HOSTS_WMS = ("www.ign.es", "ign.es", "servicios.idee.es", "wms-mapa-lidar.idee.es", "www.idee.es",
@@ -69,6 +70,7 @@ def capas_wms(url):
 WEB = os.path.join(RAIZ, "web")
 _lock_tarea = threading.Lock()
 ESTADO_PROG = {"proxima_actualizacion": None, "en_curso": False, "ultimo_resultado": None}
+AVISOS_CACHE = {"t": 0, "d": None}
 
 
 def log(msg):
@@ -164,6 +166,12 @@ def crear_manejador(cfg, alm):
                     if not isla.disponible:
                         return self._json({"error": "contorno no disponible"}, 404)
                     return self._json(isla.geojson)
+                if u.path == "/api/avisos":
+                    if time.time() - AVISOS_CACHE["t"] > 900:      # como mucho cada 15 min
+                        AVISOS_CACHE["d"] = avisos.descargar(cfg["aemet"].get("api_key", ""),
+                                                             cfg["aemet"].get("url_avisos", avisos.URL_WEB))
+                        AVISOS_CACHE["t"] = time.time()
+                    return self._json(AVISOS_CACHE["d"])
                 if u.path == "/api/wms_capas":
                     return self._json(capas_wms(q["url"]))
                 if u.path == "/api/estaciones":

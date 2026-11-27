@@ -84,11 +84,26 @@ select.con-error { border-color: var(--error); }
 .pie { font-size: 11.5px; color: var(--suave); }
 
 /* KPI */
-#kpis { display: flex; flex-wrap: wrap; gap: 12px; }
+#kpis, .kpis-fila { display: flex; flex-wrap: wrap; gap: 12px; }
+#kpis-mapa .kpi { flex: 1 1 calc(33.333% - 8px); padding: 10px 14px; }
+#kpis-mapa .kpi .v { font-size: 24px; }
 .kpi { flex: 1 1 160px; min-width: 0; background: var(--caja); border: 1px solid var(--borde); padding: 12px 16px; display: flex; flex-direction: column; gap: 3px; }
 .kpi .t { font-size: 12px; color: var(--suave); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi .v { font-size: 28px; font-weight: 600; color: var(--azul); line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .kpi .v small { font-size: 14px; color: var(--suave); font-weight: 400; }
+/* caja de avisos AEMET: el color de fondo indica el nivel máximo en vigor o previsto */
+.kpi.avisos-aemet { text-decoration: none; cursor: pointer; border-width: 0; color: #fff; transition: filter .15s, transform .15s; }
+.kpi.avisos-aemet:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.kpi.avisos-aemet .t, .kpi.avisos-aemet .d, .kpi.avisos-aemet .v { color: inherit; }
+.kpi.avisos-aemet .t { opacity: .92; }
+.kpi.avisos-aemet .ext { font-weight: 400; }
+.kpi.avisos-aemet .v small { color: inherit; opacity: .85; }
+.avisos-aemet.n-verde { background: #2e9e5b; }
+.avisos-aemet.n-amarillo { background: #f2c418; color: #3a2e00; }
+.avisos-aemet.n-naranja { background: #ef7d1a; }
+.avisos-aemet.n-rojo { background: #d32f2f; animation: latido 1.6s ease-in-out infinite; }
+.avisos-aemet.n-gris { background: #8a96a3; }
+@keyframes latido { 50% { filter: brightness(1.18); } }
 .kpi .d { font-size: 12px; color: var(--suave); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* mapa */
@@ -234,7 +249,10 @@ body[data-vista="estaciones"] .tabla-caja { max-height: none; }
   #kpis { gap: 8px; }
   .kpi { flex-basis: 140px; padding: 9px 12px; }
   .kpi .v { font-size: 22px; }
-  .kpi:nth-child(n+5) { display: none; }
+  #kpis-mapa { gap: 8px; }
+  #kpis-mapa .kpi { flex-basis: calc(50% - 4px); }
+  #kpis-mapa .kpi .v { font-size: 20px; }
+  .kpi.avisos-aemet { flex-basis: 100%; }
   .tile { padding: 12px; }
   #zona-mapa { height: 52vh; min-height: 300px; }
   #leyenda { left: 8px; right: auto; top: auto; bottom: 8px; width: 190px; }

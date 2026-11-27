@@ -25,6 +25,7 @@ sys.path.insert(0, RAIZ)
 import colector  # noqa: E402
 from almacen import VARIABLES, Almacen, iso_hora, ahora_utc  # noqa: E402
 from fuentes.comun import en_tenerife, http_get  # noqa: E402
+from fuentes import avisos  # noqa: E402
 
 DATOS = os.path.join(RAIZ, "datos")
 SITIO = os.path.join(RAIZ, "_site")
@@ -106,6 +107,9 @@ def generar_sitio(alm, cfg):
     if isla.disponible:
         _escribir_json(os.path.join(d, "isla.geojson"), isla.geojson)
     _escribir_json(os.path.join(d, "wms_capas.json"), capas_wms())
+    av = avisos.descargar(cfg["aemet"].get("api_key", ""), cfg["aemet"].get("url_avisos", avisos.URL_WEB))
+    _escribir_json(os.path.join(d, "avisos.json"), av)
+    log(f"[avisos] {'nivel ' + av['nivel'] + ', ' + str(len(av['avisos'])) + ' avisos' if av['ok'] else 'ERROR ' + str(av['error'])}")
     log(f"[sitio] {len(ests)} estaciones, {len(obs)} obs en ventana → {os.path.relpath(SITIO, RAIZ)}/")
 
 

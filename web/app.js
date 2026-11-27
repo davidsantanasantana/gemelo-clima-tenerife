@@ -78,6 +78,7 @@
     config: () => EST ? Promise.resolve({ horas_visor: window.GEMELO.horasVisor || 72 }) : json("/api/config"),
     estado: () => EST ? json(fresco("data/estado.json")) : json("/api/estado"),
     ventana: h => EST ? json(fresco("data/ventana.json")) : json(`/api/ventana?horas=${h}`),
+    avisos: () => EST ? json(fresco("data/avisos.json")) : json("/api/avisos"),
     isla: () => EST ? json("data/isla.geojson") : json("/api/isla"),
     capas: url => EST ? json("data/wms_capas.json").then(m => m[url] || []) : json(`/api/wms_capas?url=${encodeURIComponent(url)}`),
     async serie(id, dias) {
@@ -474,6 +475,47 @@
     return { pts, max: pts.reduce((a, b) => b.v > a.v ? b : a), min: pts.reduce((a, b) => b.v < a.v ? b : a),
       media: pts.reduce((s, p) => s + p.v, 0) / pts.length };
   }
+  // ------------------------------------------------------------------ avisos AEMET (Tenerife)
+  const URL_AVISOS = "https://www.aemet.es/es/eltiempo/prediccion/avisos?k=coo";
+  const NIV_TXT = { verde: "Sin avisos", amarillo: "Amarillo", naranja: "Naranja", rojo: "Rojo" };
+  const fmtAviso = new Intl.DateTimeFormat("es-ES", { timeZone: "Atlantic/Canary", weekday: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const fAv = iso => iso ? fmtAviso.format(Date.parse(iso)).replace(",", "") : "?";
+  function htmlAvisos() {
+    const a = S.avisos;
+    const url = (a && a.url) || URL_AVISOS;
+    let prev = "", nivel = "gris", valor = "—", det = "consultando AEMET…", tip = "Avisos de AEMET para Tenerife";
+    if (a && !a.ok) { det = "sin conexión con AEMET · ver web"; tip = `No se pudieron leer los avisos: ${a.error || ""}`; }
+    else if (a) {
+      nivel = a.nivel || "verde";
+      valor = NIV_TXT[nivel];
+      const lst = a.avisos || [];
+      if (!lst.length) det = "sin avisos en vigor ni previstos";
+      else {
+        const p = lst[0];
+        const zona = p.zona.replace(/ de Tenerife$/i, "");
+        det = `${p.fenomeno} · ${zona} · ${p.activo ? "en vigor hasta " + fAv(p.fin) : "desde " + fAv(p.inicio)}` +
+              (lst.length > 1 ? ` · +${lst.length - 1}` : "");
+        if (!lst.some(x => x.nivel === nivel && x.activo)) prev = "previsto";
+      }
+      tip = lst.length ? lst.map(x => `${NIV_TXT[x.nivel]} · ${x.fenomeno} · ${x.zona} · ${fAv(x.inicio)} → ${fAv(x.fin)}${x.activo ? " (en vigor)" : ""}`).join("\n")
+                       : "Sin avisos para Tenerife";
+      tip += `\nActualizado: ${fAv(a.actualizado)} · Pulsa para abrir los avisos de Canarias en AEMET`;
+    }
+    return `<a id="kpi-avisos" class="kpi avisos-aemet n-${nivel}" href="${esc(url)}" target="_blank" rel="noopener" title="${esc(tip)}">` +
+      `<div class="t">Avisos AEMET · Tenerife <span class="ext">↗</span></div><div class="v">${esc(valor)}${prev ? ` <small>${prev}</small>` : ""}</div><div class="d">${esc(det)}</div></a>`;
+  }
+  function pintarAvisos() {
+    const viejo = $("kpi-avisos");
+    if (viejo) viejo.outerHTML = htmlAvisos();
+    else $("kpis").insertAdjacentHTML("afterbegin", htmlAvisos());
+  }
+  async function cargarAvisos(forzar) {
+    if (!forzar && S.avisosT && Date.now() - S.avisosT < 5 * 60 * 1000) return;
+    S.avisosT = Date.now();
+    try { S.avisos = await DATOS.avisos(); } catch (err) { if (!S.avisos) S.avisos = { ok: false, error: String(err) }; }
+    pintarAvisos();
+  }
+
   function renderKPIs() {
     const k = (t, v, u, d) => `<div class="kpi"><div class="t">${t}</div><div class="v">${v} <small>${u}</small></div><div class="d" title="${esc(d)}">${esc(d)}</div></div>`;
     const lugar = p => `${p.e.nombre} · ${Math.round(p.e.alt ?? 0)} m`;
@@ -481,11 +523,13 @@
     const total = [...S.est.values()].filter(visible);
     const conDato = total.filter(e => S.porHora.get(S.horas[S.idx])?.has(e.id) || valor(e.id, S.idx, "ta").v != null);
     const porF = f => conDato.filter(e => e.fuente === f).length;
-    $("kpis").innerHTML =
+    // arriba: solo avisos AEMET · bajo el mapa: dos filas de tres indicadores
+    $("kpis").innerHTML = htmlAvisos();
+    $("kpis-mapa").innerHTML =
       k("Temperatura media", T ? fmt("ta", T.media) : "—", "°C", T ? `media de ${T.pts.length} estaciones` : "sin datos") +
       k("Máxima", T ? fmt("ta", T.max.v) : "—", "°C", T ? lugar(T.max) : "") +
       k("Mínima", T ? fmt("ta", T.min.v) : "—", "°C", T ? lugar(T.min) : "") +
-      k("Precipitación 24 h máx.", P ? fmt("prec24", P.max.v) : "—", "mm", P ? (P.max.v >= 0.1 ? lugar(P.max) : "sin lluvia en la red") : "") +
+      k("Lluvia 24 h máx.", P ? fmt("prec24", P.max.v) : "—", "mm", P ? (P.max.v >= 0.1 ? lugar(P.max) : "sin lluvia en la red") : "") +
       k("Racha máxima", R ? fmt("vmax", R.max.v) : "—", "km/h", R ? lugar(R.max) : "") +
       k("Estaciones activas", conDato.length, `/ ${total.length}`, `AEMET ${porF("AEMET")} · AgroCabildo ${porF("AGROCABILDO")}`);
   }
@@ -677,6 +721,7 @@
   // ------------------------------------------------------------------ estado / sondeo
   function edad(iso) { return iso ? (Date.now() - Date.parse(iso)) / MS_H : Infinity; }
   async function sondearEstado() {
+    cargarAvisos();
     let e;
     try { e = await DATOS.estado(); } catch { $("st-ultimo").textContent = "sin conexión"; return; }
     S.modo = e.modo;
@@ -745,7 +790,7 @@
   let tempRedim = null;
   window.addEventListener("resize", () => { clearTimeout(tempRedim); tempRedim = setTimeout(() => { S.cacheTend = ""; render(); }, 200); });
   $("btn-actualizar").onclick = async () => {
-    if (EST) { S.ultimaAct = null; cacheSeries.clear(); await sondearEstado(); return; }
+    if (EST) { S.ultimaAct = null; S.avisosT = 0; cacheSeries.clear(); await sondearEstado(); return; }
     $("btn-actualizar").classList.add("girando");
     await fetch("/api/actualizar", { method: "POST" });
     setTimeout(sondearEstado, 4000);

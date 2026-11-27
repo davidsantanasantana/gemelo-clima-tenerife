@@ -24,6 +24,8 @@ hora_consolidacion = 00:50
 activo = si
 ; Clave gratuita: https://opendata.aemet.es/centrodedescargas/altaUsuario
 api_key = PON_AQUI_TU_API_KEY
+; Página que abre la caja de avisos (avisos de Canarias en aemet.es)
+url_avisos = https://www.aemet.es/es/eltiempo/prediccion/avisos?k=coo
 
 [agrocabildo]
 ; API Meteo del Cabildo (https://datos.tenerife.es/api/meteo/latest/docs): pública, sin clave,
