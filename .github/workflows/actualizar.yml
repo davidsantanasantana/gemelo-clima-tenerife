@@ -1,24 +1,18 @@
 # Gemelo climático de Tenerife — descarga horaria y publicación de la app (GitHub Pages)
+# Versión SIN histórico: no se guarda nada en el repositorio (sin commits, sin conflictos).
+# Cada ejecución lee lo ya publicado en la web, añade lo nuevo y publica las últimas 24 h.
 name: Actualizar datos y app
 
 on:
   schedule:
     - cron: "25 * * * *"          # cada hora, minuto 25 (UTC). GitHub puede retrasarlo unos minutos.
   workflow_dispatch:               # botón "Run workflow" en la pestaña Actions
-    inputs:
-      backfill_desde:
-        description: "Opcional: rellenar AgroCabildo desde esta fecha (AAAA-MM-DD)"
-        required: false
-        default: ""
-      diarios_anios:
-        description: "Opcional: años de resúmenes diarios de AgroCabildo (ej.: 2023 2024 2025 2026)"
-        required: false
-        default: ""
 
 permissions:
-  contents: write                  # guardar el histórico (datos/) en el repositorio
+  contents: read                   # solo lectura: el workflow ya no escribe en el repositorio
   pages: write
   id-token: write
+  actions: write                   # para mantener activo el workflow programado (ver «mantener»)
 
 concurrency:
   group: gemelo
@@ -27,42 +21,29 @@ concurrency:
 jobs:
   actualizar:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
       - name: Obtener el repositorio
         uses: actions/checkout@v6
 
-      - name: Descargar datos, actualizar histórico y generar la app
+      - name: Preparar GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Descargar datos y generar la app
         env:
           AEMET_API_KEY: ${{ secrets.AEMET_API_KEY }}
-          BACKFILL_DESDE: ${{ inputs.backfill_desde }}
-          DIARIOS_ANIOS: ${{ inputs.diarios_anios }}
+          URL_PUBLICADA: ${{ steps.pages.outputs.base_url }}
         run: python3 nube.py ciclo
-
-      - name: Guardar el histórico en el repositorio
-        run: |
-          git config user.name  "gemelo-bot"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add datos
-          if git diff --cached --quiet; then
-            echo "Sin cambios en datos/"
-          else
-            git commit -q -m "datos $(date -u +%Y-%m-%dT%H:%MZ)"
-            for i in 1 2 3; do git push && break || (sleep 5; git pull --rebase -q); done
-          fi
-
-      - name: Preparar GitHub Pages
-        uses: actions/configure-pages@v6
 
       - name: Subir la app
         uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
-  # Publicación en un trabajo aparte (recomendación de actions/deploy-pages). Además se reintenta:
+  # Publicación en un trabajo aparte (recomendación de actions/deploy-pages), con reintentos:
   # deploy-pages busca el artefacto una sola vez y, por un fallo conocido de GitHub
   # (actions/deploy-pages#451), a veces aún no aparece aunque se acabe de subir.
-  # Solo se reintenta la publicación: subir el artefacto dos veces haría fallar la búsqueda.
   publicar:
     needs: actualizar
     runs-on: ubuntu-latest
@@ -101,3 +82,22 @@ jobs:
         id: p4
         if: steps.p1.outcome == 'failure' && steps.p2.outcome == 'failure' && steps.p3.outcome == 'failure'
         uses: actions/deploy-pages@v5
+
+  # GitHub desactiva los workflows programados de repositorios públicos tras 60 días sin actividad.
+  # Como ya no hay commits de datos, una vez al día se vuelve a «habilitar» este workflow por la API,
+  # lo que reinicia ese plazo (mismo método que la acción keepalive-workflow en modo API).
+  mantener:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mantener activo el workflow programado
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$(date -u +%H)" = "03" ]; then
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/actualizar.yml/enable" \
+              && echo "Workflow mantenido activo"
+          else
+            echo "Solo se hace una vez al día (03 UTC)"
+          fi
