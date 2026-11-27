@@ -14,8 +14,9 @@ exterior (mar y resto de islas) queda enmascarado, se dibuja la línea de costa,
 interpolada se recorta a la costa y solo se muestran estaciones situadas en la isla.
 
 > **App para iPhone y Android:** el mismo visor se puede publicar gratis en GitHub Pages, con
-> actualización horaria automática aunque el PC esté apagado, e instalarse en el móvil. Los
-> pasos están en **[GUIA_MOVIL.md](GUIA_MOVIL.md)**.
+> actualización horaria automática aunque el PC esté apagado, e instalarse en el móvil. La
+> versión publicada muestra las últimas 24 h y no guarda histórico (eso lo hace este gemelo
+> local). Los pasos están en **[GUIA_MOVIL.md](GUIA_MOVIL.md)**.
 
 ---
 

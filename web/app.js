@@ -82,18 +82,9 @@
     capas: url => EST ? json("data/wms_capas.json").then(m => m[url] || []) : json(`/api/wms_capas?url=${encodeURIComponent(url)}`),
     async serie(id, dias) {
       if (!EST) return json(`/api/serie?id=${encodeURIComponent(id)}&dias=${dias}`);
-      let s = cacheSeries.get(id);
-      if (!s) { s = await json(fresco(`data/series/${id.replace(":", "_")}.json`)); cacheSeries.set(id, s); }
+      // versión publicada: la ficha usa los datos ya cargados (últimas horas publicadas)
       const lim = Date.now() - dias * 864e5;
-      if (dias > 31) return { escala: "diaria", datos: s.diaria.filter(r => Date.parse(r.dia + "T12:00:00Z") >= lim) };
-      const h = s.horaria, datos = [];
-      h.fecha.forEach((f, i) => {
-        if (Date.parse(f) < lim) return;
-        const r = { fecha: f };
-        for (const k in h) if (k !== "fecha") r[k] = h[k][i];
-        datos.push(r);
-      });
-      return { escala: "horaria", datos };
+      return { escala: "horaria", datos: (S.porEst.get(id) || []).filter(o => o.t >= lim) };
     },
   };
   async function descargarCSV(id, dias) {
@@ -440,7 +431,10 @@
   }
   function construirPeriodo() {
     const cont = $("filtro-periodo");
-    cont.innerHTML = [[24, "24 h"], [72, "72 h"], [168, "7 días"]].map(([h, t]) => `<button data-h="${h}">${t}</button>`).join("");
+    const ops = [[24, "24 h"], [72, "72 h"], [168, "7 días"]].filter(([h]) => h <= S.horasVisor);
+    cont.closest(".grupo").style.display = ops.length > 1 ? "" : "none";   // con 24 h no hay nada que elegir
+    S.periodoH = Math.min(S.periodoH, S.horasVisor);
+    cont.innerHTML = ops.map(([h, t]) => `<button data-h="${h}">${t}</button>`).join("");
     cont.querySelectorAll("button").forEach(b => b.onclick = () => { S.periodoH = +b.dataset.h; S.cacheTend = ""; ajustarPeriodo(); render(); });
   }
   function ajustarPeriodo() {
@@ -771,7 +765,6 @@
 
   (async function iniciar() {
     construirSelector();
-    construirPeriodo();
     construirSelectorFondo();
     await cargarIsla();
     ponerFondo("ign_base");
@@ -779,6 +772,10 @@
       const c = await DATOS.config();
       S.horasVisor = c.horas_visor || 168;
     } catch { }
+    construirPeriodo();
+    // ficha de estación: solo los rangos que caben en los datos disponibles
+    document.querySelectorAll(".rango button").forEach(b => { if (+b.dataset.dias * 24 > Math.max(24, S.horasVisor) && EST) b.remove(); });
+    S.diasCajon = EST ? Math.min(S.diasCajon, Math.max(1, Math.floor(S.horasVisor / 24))) : S.diasCajon;
     await sondearEstado();
     // comprueba cada minuto si hay datos nuevos (cada 15 s mientras aún no haya ninguno)
     const bucle = () => sondearEstado().finally(() => setTimeout(bucle, S.horas.length ? 60 * 1000 : 15 * 1000));

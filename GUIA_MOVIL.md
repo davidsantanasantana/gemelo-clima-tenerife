@@ -4,9 +4,10 @@ Resultado: una dirección web como `https://TU-USUARIO.github.io/clima-tenerife/
 el móvil como una app, con icono propio y a pantalla completa. Se actualiza sola cada hora, aunque
 tu PC esté apagado. Coste: 0 €. No hace falta instalar nada en el PC.
 
-**Cómo funciona:** GitHub ejecuta cada hora `nube.py`. Ese programa descarga AEMET y AgroCabildo,
-guarda el histórico como CSV diarios en `datos/` dentro del propio repositorio y publica la app
-en GitHub Pages.
+**Cómo funciona:** GitHub ejecuta cada hora `nube.py`. Ese programa lee los datos ya publicados en
+la web, descarga lo nuevo de AEMET y AgroCabildo y vuelve a publicar la app con **las últimas 24 h**.
+**No se guarda nada en el repositorio**: no hay commits ni conflictos. El histórico completo lo
+lleva el gemelo local del PC.
 
 ---
 
@@ -54,12 +55,7 @@ en GitHub Pages.
 ## 6. Primera ejecución
 
 1. Pestaña **Actions**. Si aparece un aviso para habilitar los workflows, acéptalo.
-2. A la izquierda elige **Actualizar datos y app** y pulsa **Run workflow**. Opcionalmente
-   rellena:
-   - *Rellenar AgroCabildo desde*: p. ej. `2026-11-01`, para empezar con un mes de histórico
-     horario.
-   - *Años de resúmenes diarios*: p. ej. `2022 2023 2024 2025 2026`, para tener series largas
-     en las gráficas.
+2. A la izquierda elige **Actualizar datos y app** y pulsa **Run workflow**.
 3. Pulsa el botón verde **Run workflow**. Tarda unos 2–5 minutos; algo más si pides el
    relleno.
 4. Cuando acabe en verde ✅, la dirección de la app aparece dentro de la ejecución, en el paso
@@ -89,7 +85,6 @@ Aparecerá el icono **Clima TF**. Al abrirla:
 
 | Síntoma | Solución |
 |---|---|
-| La ejecución falla en *Guardar el histórico* con error 403 | **Settings → Actions → General → Workflow permissions → Read and write permissions → Save**, y vuelve a lanzarla |
 | Falla en *Publicar la app* | Revisa el paso 5 (Source: GitHub Actions) |
 | La app no muestra estaciones de AEMET | Abre la ejecución en **Actions** → paso *Descargar datos…* y busca la línea `[AEMET]`. Si dice "Falta la API key", revisa el secreto del paso 4 |
 | Sale `[AGROCABILDO] ERROR` | La API del Cabildo no respondió desde los servidores de GitHub (están fuera de España). Se reintenta cada hora; si persiste varios días, avísame |
@@ -97,14 +92,18 @@ Aparecerá el icono **Clima TF**. Al abrirla:
 
 ## Mantenimiento
 
-- **Nada que hacer en el día a día.** Cada ejecución horaria guarda datos, y eso mantiene el
-  repositorio activo. GitHub desactiva los workflows programados de repositorios públicos sin
-  actividad en 60 días, pero aquí no llegará a pasar.
-- **Histórico:** queda en `datos/historico/AAAA/AAAA-MM-DD.csv`, en el mismo formato que los CSV
-  diarios del gemelo local, y se puede descargar desde la web de GitHub. Para traer al repositorio
-  el histórico que ya tengas en el PC, sube tus CSV de `datos/diario/AAAA/` a
-  `datos/historico/AAAA/` (**Add file → Upload files**). Quedan archivados, y la app usará los de
-  los últimos 31 días en sus gráficas horarias.
-- **Cambiar la clave de AEMET:** solo hay que editar el secreto (paso 4).
-- **El gemelo local sigue funcionando igual** (`iniciar_gemelo.bat`) y es independiente de la
-  versión publicada.
+- **Nada que hacer en el día a día.** Cada ejecución verás dos o tres bloques: **actualizar**,
+  **publicar** y, en la ejecución de las 03 UTC, **mantener**. Este último pide a GitHub que no
+  desactive el workflow programado, cosa que GitHub hace en los repositorios públicos tras 60 días
+  sin actividad.
+- **Si en «publicar» un intento sale en rojo y otro en verde**, todo ha ido bien: es un fallo
+  intermitente de GitHub y el workflow reintenta hasta 4 veces.
+- **Si GitHub deja de ejecutar más de 12 h seguidas**, la app tendrá un hueco en los datos de AEMET
+  de ese tramo, porque AEMET solo ofrece las últimas ~12 h. AgroCabildo se recupera completo.
+- **Más horas en la app**: cambia `HORAS_VISOR = 24` en `nube.py` (72 o 168). Aparecerá el filtro
+  de periodo.
+- **La carpeta `datos/` del repositorio** es de la versión anterior y ya no se actualiza; puedes
+  dejarla o borrarla.
+- **Cambiar la clave de AEMET**: solo hay que editar el secreto (paso 4).
+- **El gemelo local** (`iniciar_gemelo.bat`) sigue igual, con su histórico completo, y es
+  independiente de la versión publicada.
